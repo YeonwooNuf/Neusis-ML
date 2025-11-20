@@ -110,12 +110,7 @@ def crawl_section_page(section, clicks=10):
 # 상세 페이지 크롤링 → Article 엔티티 형태로 반환
 # -------------------------------
 def crawl_article_detail(url: str, section: str):
-    """
-    네이버 기사 상세 페이지를 열어서
-    Article 테이블에 바로 넣을 수 있는 형태로 변환.
-    """
     headers = {"User-Agent": "Mozilla/5.0"}
-
     resp = requests.get(url, headers=headers)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -124,67 +119,56 @@ def crawl_article_detail(url: str, section: str):
     title_tag = soup.find("h2", class_="media_end_head_headline")
     title = title_tag.get_text(strip=True) if title_tag else None
 
-    # 본문(네이버 기사 본문 id="dic_area")
+    # 본문
     body_tag = soup.find("article", id="dic_area")
     content = body_tag.get_text("\n", strip=True) if body_tag else None
 
-    # 날짜 (data-date-time 속성)
+    # 발행일시
     date_tag = soup.find(
-        "span", class_="media_end_head_info_datestamp_time _ARTICLE_DATE_TIME"
+        "span",
+        class_="media_end_head_info_datestamp_time _ARTICLE_DATE_TIME"
     )
-    date_time = date_tag.get("data-date-time") if date_tag else None
-    # 그대로 published_at 에 넣고, Spring 쪽에서 LocalDateTime 으로 파싱하면 됨
+    published_at = date_tag.get("data-date-time") if date_tag else None
+    # 예: "2025-11-18 18:19:45"
 
-    # 원본 링크
+    # 원본 링크(지금은 DB에 안 넣지만 참고용)
     origin_link_tag = soup.find("a", class_="media_end_head_origin_link")
     origin_link = origin_link_tag.get("href") if origin_link_tag else None
 
-    # 기자명 (author)
-    # 네이버 구조가 조금씩 바뀔 수 있어서 몇 가지 셀렉터 시도
+    # 기자명
     author = None
-    author_selectors = [
-        ".media_end_head_journalist_name",
-        ".byline",
-        ".reporter",
-    ]
-    for sel in author_selectors:
+    for sel in [".media_end_head_journalist_name", ".byline", ".reporter"]:
         tag = soup.select_one(sel)
         if tag and tag.get_text(strip=True):
             author = tag.get_text(strip=True)
             break
-    if not author:
-        author = "UNKNOWN"
 
-    # 언론사명 (source)
+    # 언론사명
     source = None
     media_logo = soup.select_one(".media_end_head_top_logo img")
     if media_logo and media_logo.get("alt"):
         source = media_logo.get("alt").strip()
-    else:
-        # fallback: meta 태그에서 시도
-        og_site = soup.find("meta", property="og:article:author")
-        if og_site and og_site.get("content"):
-            source = og_site.get("content").strip()
-    if not source:
-        source = "UNKNOWN"
 
-    # 카테고리
+    # 본문 이미지 중 첫 번째
+    image_url = None
+    image_block = soup.find("span", class_="end_photo_org")
+    if image_block:
+        img_tag = image_block.find("img")
+        if img_tag and img_tag.get("src"):
+            image_url = img_tag.get("src")
+
+    # 섹션 → 카테고리 ENUM 값
     category = section_to_category(section)
 
-    # ingest_status
-    ingest_status = "INGESTED" if content else "FAILED"
-
-    # Article 엔티티에 바로 매핑 가능한 구조로 반환
-    article_entity = {
-        "title": title,             # 기사 제목
-        "author": author,           # 네이버 모바일 뉴스 상세 페이지
+    return {
+        "title": title,
+        "author": author,
         "category": category,
         "content": content,
-        "published_at": date_time,  # 그대로 문자열로 두고, 백엔드에서 파싱
+        "published_at": published_at,
         "source": source,
-        "url": url,                 # 네이버 뉴스 URL
-        "origin_link": origin_link, # 필요 없으면 나중에 무시
-        "ingest_status": ingest_status,
+        "url": url,
+        "origin_link": origin_link,
+        "image_url": image_url,
+        "ingest_status": "INGESTED" if content else "FAILED",
     }
-
-    return article_entity

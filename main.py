@@ -1,49 +1,16 @@
-from fastapi import FastAPI
-from crawler import crawl_section_page, crawl_article_detail
+# main.py
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
-import requests as py_requests  # 네이버 요청이랑 헷갈리지 않게 이름 다르게
+from typing import Optional, List
 
-app = FastAPI()  # ← 딱 한 번만!
+from crawler import crawl_section_page, crawl_article_detail
+from db import insert_article  # ✅ db.py의 insert_article 사용
 
-# FastAPI → Spring 로 기사 보내는 쪽
-SPRING_INGEST_URL = "http://localhost:8080/internal/articles/ingest"  # 스프링 주소
-
-
-# -------------------------------
-# /crawl : 크롤링 결과만 반환
-# -------------------------------
-@app.get("/crawl")
-def crawl(section: str = "101", clicks: int = 5, with_detail: bool = True):
-
-    # 1) 섹션 페이지 크롤링
-    section_articles = crawl_section_page(section, clicks)
-
-    results = []
-
-    # 2) 상세 페이지 크롤링
-    for a in section_articles:
-        link = a["link"]
-        if not link:
-            continue
-
-        detail = crawl_article_detail(link, section) if with_detail else {}
-
-        results.append({
-            **a,
-            **detail
-        })
-
-    return {
-        "count": len(results),
-        "articles": results
-    }
+app = FastAPI()
 
 
-# -------------------------------
-# /crawl/send : 크롤링 + Spring으로 전송
-# -------------------------------
 class ArticlePayload(BaseModel):
+    # DB에 넣을 때 사용할 기사 정보 모델
     title: str
     author: Optional[str]
     category: str
@@ -52,57 +19,73 @@ class ArticlePayload(BaseModel):
     source: Optional[str]
     url: str
     origin_link: Optional[str]
+    thumbnail: Optional[str]      # 목록에서 가져오는 썸네일
+    image_url: Optional[str]      # 본문 이미지 (첫 장)
     ingest_status: str
 
 
 @app.get("/crawl/send")
-def crawl_and_send(
-        section: str = "101",  # 기본: ECONOMY
+def crawl_and_save(
+        section: str = "101",
         clicks: int = 3,
 ):
     """
     1) 네이버 섹션 페이지 크롤링
-    2) 각 기사 상세 크롤링 → ArticlePayload 리스트로 변환
-    3) Spring Boot 엔드포인트로 POST
+    2) 각 기사 상세 크롤링
+    3) db.insert_article() 사용해서 PostgreSQL article 테이블에 저장
     """
 
-    # 1) 섹션 페이지에서 링크 목록 크롤링
-    section_articles = crawl_section_page(section, clicks)
+    try:
+        # 1) 섹션 페이지에서 기사 목록 크롤링
+        section_articles = crawl_section_page(section, clicks)
 
-    articles: List[ArticlePayload] = []
+        saved_count = 0
+        payloads: List[ArticlePayload] = []
 
-    for a in section_articles:
-        link = a["link"]
-        if not link:
-            continue
+        for a in section_articles:
+            link = a.get("link")
+            if not link:
+                continue
 
-        # 2) 상세 페이지 크롤링 → Article 엔티티 형태 딕셔너리
-        detail = crawl_article_detail(link, section)
+            # 2) 상세 페이지 크롤링 (crawler.py에서 dict 반환)
+            detail = crawl_article_detail(link, section)
 
-        payload = ArticlePayload(
-            title=detail["title"],
-            author=detail["author"],
-            category=detail["category"],
-            content=detail["content"],
-            published_at=detail["published_at"],
-            source=detail["source"],
-            url=detail["url"],
-            origin_link=detail["origin_link"],
-            ingest_status=detail["ingest_status"],
-        )
-        articles.append(payload)
+            payload = ArticlePayload(
+                title=detail.get("title"),
+                author=detail.get("author"),
+                category=detail.get("category"),
+                content=detail.get("content"),
+                published_at=detail.get("published_at"),
+                source=detail.get("source"),
+                url=detail.get("url"),
+                origin_link=detail.get("origin_link"),
+                thumbnail=a.get("thumbnail"),              # 목록 썸네일
+                image_url=detail.get("image_url"),
+                ingest_status=detail.get("ingest_status", "INGESTED"),
+            )
+            payloads.append(payload)
 
-    # 3) Spring Boot로 POST
-    resp = py_requests.post(
-        SPRING_INGEST_URL,
-        json=[a.dict() for a in articles],
-        timeout=30,
-    )
+            # 3) DB에 저장할 dict로 변환해서 insert_article 호출
+            article_dict = {
+                "title": payload.title,
+                "author": payload.author or "UNKNOWN",
+                "category": payload.category,                # POLITICS / ECONOMY / ...
+                "content": payload.content or "",
+                "published_at": payload.published_at,        # "YYYY-MM-DD HH:MM:SS" 형태
+                "source": payload.source or "",
+                "url": payload.url,
+                "image_url": payload.image_url or "",
+                "ingest_status": payload.ingest_status or "INGESTED",
+            }
 
-    return {
-        "sent_count": len(articles),
-        "spring_status": resp.status_code,
-        "spring_response": resp.json()
-        if resp.headers.get("content-type", "").startswith("application/json")
-        else resp.text,
-    }
+            insert_article(article_dict)
+            saved_count += 1
+
+        return {
+            "crawled": len(payloads),
+            "saved": saved_count,
+        }
+
+    except Exception as e:
+        # 어디서 에러 났는지 확인하기 쉽게 500과 함께 메시지 반환
+        raise HTTPException(status_code=500, detail=f"crawl_and_save 실패: {e}")
