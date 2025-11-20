@@ -1,7 +1,8 @@
+import os
+import platform
 import time
 import requests
 from bs4 import BeautifulSoup
-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -9,12 +10,33 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
+# -------------------------------
+# ChromeDriver Path Resolver
+# -------------------------------
+def get_chromedriver_path():
+    base_dir = os.path.dirname(os.path.abspath(__file__))   # crawler.py 기준
+    driver_dir = os.path.join(base_dir, "chromedriver")
+
+    system = platform.system()
+
+    # macOS (Darwin)
+    if system == "Darwin":
+        path = os.path.join(driver_dir, "mac", "chromedriver")
+        return path
+
+    # Windows
+    if system == "Windows":
+        path = os.path.join(driver_dir, "win", "chromedriver.exe")
+        return path
+
+    raise RuntimeError(f"Unsupported OS: {system}")
+
 
 # -------------------------------
 # Selenium Setup
 # -------------------------------
 def get_driver():
-    chrome_driver_path = r"D:\chromedriver-win64\chromedriver.exe"  # 네 PC 경로
+    chrome_driver_path = get_chromedriver_path()
 
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -22,8 +44,7 @@ def get_driver():
     options.add_argument("--disable-dev-shm-usage")
 
     service = Service(chrome_driver_path)
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
+    return webdriver.Chrome(service=service, options=options)
 
 
 # -------------------------------
