@@ -172,11 +172,19 @@ def crawl_article_detail(url: str, section: str):
 
     # 본문 이미지 중 첫 번째
     image_url = None
-    image_block = soup.find("span", class_="end_photo_org")
-    if image_block:
-        img_tag = image_block.find("img")
-        if img_tag and img_tag.get("src"):
-            image_url = img_tag.get("src")
+
+    # 1) 기사 본문 영역 안의 img 태그 우선 탐색
+    img_tag = soup.select_one("article#dic_area img")
+    if img_tag and img_tag.get("src"):
+        image_url = img_tag.get("src")
+
+    # 2) 그래도 없으면 og:image 메타 태그 fallback
+    if not image_url:
+        og_img = soup.find("meta", property="og:image")
+        if og_img and og_img.get("content"):
+            image_url = og_img.get("content")
+
+    print("IMG:", image_url)
 
     # 섹션 → 카테고리 ENUM 값
     category = section_to_category(section)
