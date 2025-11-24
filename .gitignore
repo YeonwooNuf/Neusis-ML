@@ -1,0 +1,67 @@
+# -------------------------
+# Python 기본
+# -------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 가상환경
+.venv/
+venv/
+
+# 파이썬 빌드/배포
+build/
+dist/
+*.egg-info/
+
+# 환경변수 파일
+.env
+*.env
+
+# IDE / 에디터 설정파일
+.vscode/
+.idea/
+*.swp
+
+# 로그 파일
+*.log
+
+# OS / 시스템 파일
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Selenium ChromeDriver
+# -------------------------
+chromedriver/mac/chromedriver
+chromedriver/win/chromedriver.exe
+chromedriver/*/LICENSE*
+chromedriver/*/THIRD_PARTY*
+
+# -------------------------
+# FastAPI / Uvicorn
+# -------------------------
+*.pid
+
+# -------------------------
+# 임시 파일
+# -------------------------
+tmp/
+temp/
+.cache/
+
+# pytest / test cache
+pytest_cache/
+.coverage
+.cache/
+htmlcov/
+
+# -------------------------
+# 데이터 파일 (원하면 제외)
+# -------------------------
+*.sqlite3
+*.db
+
+# 크롤링 중 생성된 임시 HTML 또는 다운로드 파일
+downloads/

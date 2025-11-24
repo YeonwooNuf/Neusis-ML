@@ -1,7 +1,8 @@
+import os
+import platform
 import time
 import requests
 from bs4 import BeautifulSoup
-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -9,12 +10,33 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
+# -------------------------------
+# ChromeDriver Path Resolver
+# -------------------------------
+def get_chromedriver_path():
+    base_dir = os.path.dirname(os.path.abspath(__file__))   # crawler.py 기준
+    driver_dir = os.path.join(base_dir, "chromedriver")
+
+    system = platform.system()
+
+    # macOS (Darwin)
+    if system == "Darwin":
+        path = os.path.join(driver_dir, "mac", "chromedriver")
+        return path
+
+    # Windows
+    if system == "Windows":
+        path = os.path.join(driver_dir, "win", "chromedriver.exe")
+        return path
+
+    raise RuntimeError(f"Unsupported OS: {system}")
+
 
 # -------------------------------
 # Selenium Setup
 # -------------------------------
 def get_driver():
-    chrome_driver_path = r"D:\chromedriver-win64\chromedriver.exe"  # 네 PC 경로
+    chrome_driver_path = get_chromedriver_path()
 
     options = webdriver.ChromeOptions()
     options.add_argument("--headless")
@@ -22,8 +44,7 @@ def get_driver():
     options.add_argument("--disable-dev-shm-usage")
 
     service = Service(chrome_driver_path)
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
+    return webdriver.Chrome(service=service, options=options)
 
 
 # -------------------------------
@@ -151,11 +172,19 @@ def crawl_article_detail(url: str, section: str):
 
     # 본문 이미지 중 첫 번째
     image_url = None
-    image_block = soup.find("span", class_="end_photo_org")
-    if image_block:
-        img_tag = image_block.find("img")
-        if img_tag and img_tag.get("src"):
-            image_url = img_tag.get("src")
+
+    # 1) 기사 본문 영역 안의 img 태그 우선 탐색
+    img_tag = soup.select_one("article#dic_area img")
+    if img_tag and img_tag.get("src"):
+        image_url = img_tag.get("src")
+
+    # 2) 그래도 없으면 og:image 메타 태그 fallback
+    if not image_url:
+        og_img = soup.find("meta", property="og:image")
+        if og_img and og_img.get("content"):
+            image_url = og_img.get("content")
+
+    print("IMG:", image_url)
 
     # 섹션 → 카테고리 ENUM 값
     category = section_to_category(section)
