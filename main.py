@@ -6,8 +6,35 @@ from typing import Optional, List
 from crawler import crawl_section_page, crawl_article_detail
 from db import insert_article  # ✅ db.py의 insert_article 사용
 
+from analysis_openai import analyze_article_with_openai
+
+class ArticleAnalysisRequest(BaseModel):
+    title: str
+    content: str
+
+
+class ArticleAnalysisResponse(BaseModel):
+    summary: str
+    sentiment: str
+    keywords: list[str]
+    category: str
+
 app = FastAPI()
 
+@app.post("/analyze", response_model=ArticleAnalysisResponse)
+async def analyze_article(req: ArticleAnalysisRequest):
+    """
+    프론트나 스프링부트에서 호출할 /analyze 엔드포인트
+    """
+    result = analyze_article_with_openai(req.title, req.content)
+
+    # OpenAI 결과 dict → 응답 모델에 맞게 변환
+    return ArticleAnalysisResponse(
+        summary=result.get("summary", ""),
+        sentiment=result.get("sentiment", "neutral"),
+        keywords=result.get("keywords", []),
+        category=result.get("category", "Society"),
+    )
 
 class ArticlePayload(BaseModel):
     # DB에 넣을 때 사용할 기사 정보 모델
