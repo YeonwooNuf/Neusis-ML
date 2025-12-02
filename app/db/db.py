@@ -35,7 +35,7 @@ def normalize_category(cat: str | None) -> str:
     return cat
 
 
-# ✅ 백엔드 enum / DB check constraint와 동일하게 맞추기
+# 백엔드 enum / DB check constraint와 동일하게 맞추기
 DEFAULT_INGEST_STATUS = "PENDING"   # 분석 대기중
 
 
@@ -52,7 +52,7 @@ def insert_article(article: dict):
         data["source"] = data.get("source") or ""
         data["image_url"] = data.get("image_url") or ""
 
-        # 🔥 여기서 무조건 PENDING으로 세팅 (외부 값은 무시)
+        # 여기서 무조건 PENDING으로 세팅 (외부 값은 무시)
         data["ingest_status"] = DEFAULT_INGEST_STATUS
 
         sql = """

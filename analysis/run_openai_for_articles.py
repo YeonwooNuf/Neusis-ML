@@ -1,4 +1,3 @@
-# run_openai_for_articles.py
 import os
 
 from dotenv import load_dotenv
@@ -20,9 +19,7 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 # 환경 변수 체크 (디버깅용, 민감 정보는 출력 X)
-print(
-    f"🔹 [ENV CHECK]\nHOST={DB_HOST}\nPORT={DB_PORT}\nDB={DB_NAME}\nUSER={DB_USER}\n"
-)
+print(f"🔹 [ENV CHECK]\nHOST={DB_HOST}\nPORT={DB_PORT}\nDB={DB_NAME}\nUSER={DB_USER}\n")
 
 # 1) DB 연결 생성
 try:
@@ -33,9 +30,9 @@ try:
         user=DB_USER,
         password=DB_PASSWORD,
     )
-    print("🔹 [LOG] DB 연결 성공")
+    print("[LOG] DB 연결 성공")
 except Exception as e:
-    print("❌ [ERROR] DB 연결 실패:", e)
+    print("[ERROR] DB 연결 실패:", e)
     raise
 
 
@@ -43,7 +40,7 @@ def fetch_target_articles(limit: int = 5):
     """
     아직 analysis_result에 없는 article 몇 개 가져오기.
     """
-    print(f"🔹 [LOG] fetch_target_articles() 호출, limit={limit}")
+    print(f"[LOG] fetch_target_articles() 호출, limit={limit}")
     with conn.cursor(cursor_factory=DictCursor) as cur:
         cur.execute(
             """
@@ -59,7 +56,7 @@ def fetch_target_articles(limit: int = 5):
             (limit,),
         )
         rows = cur.fetchall()
-        print(f"🔹 [LOG] 가져온 기사 개수: {len(rows)}")
+        print(f"[LOG] 가져온 기사 개수: {len(rows)}")
         return rows
 
 
@@ -68,7 +65,7 @@ def update_article_status(article_id: int, status: str):
     article 테이블의 ingest_status 업데이트
     status: 'ANALYZED', 'FAILED' 등
     """
-    print(f"🔹 [LOG] article_id={article_id} ingest_status -> {status}")
+    print(f"[LOG] article_id={article_id} ingest_status -> {status}")
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -93,10 +90,10 @@ def save_analysis_to_db(article_id: int, analysis: dict):
     sentiment = (analysis.get("sentiment") or "NEUTRAL").strip().upper()
     keywords = analysis.get("keywords") or []
 
-    # ✅ DB가 허용하는 5가지 값
+    # DB가 허용하는 5가지 값
     allowed = {"POSITIVE", "NEUTRAL", "NEGATIVE", "HOPEFUL", "ANXIOUS"}
 
-    # ✅ GPT가 줄 수 있는 감정을 DB 스킴에 맞게 변환
+    # GPT가 줄 수 있는 감정을 DB 스킴에 맞게 변환
     mapping = {
         "FEARFUL": "ANXIOUS",
         "FEAR": "ANXIOUS",
@@ -122,20 +119,12 @@ def save_analysis_to_db(article_id: int, analysis: dict):
                 processed_at,
                 sentiment,
                 summary,
-                trend_score,
                 article_id
             )
-            VALUES (
-                NOW(),
-                NOW(),
-                %s,
-                %s,
-                %s,
-                %s
-            )
+            VALUES (NOW(), NOW(), %s, %s, %s)
             RETURNING result_id;
             """,
-            (sentiment, summary, 0.0, article_id),
+            (sentiment, summary, article_id),
         )
         result_id = cur.fetchone()[0]
         print(f"🔹 [LOG] analysis_result 저장 완료, result_id={result_id}")
@@ -156,17 +145,17 @@ def save_analysis_to_db(article_id: int, analysis: dict):
         print(f"🔹 [LOG] analysis_keywords {len(keywords)}개 저장 완료")
 
     conn.commit()
-    print(f"✅ [LOG] article_id={article_id} 전체 저장 커밋 완료\n")
+    print(f"[LOG] article_id={article_id} 전체 저장 커밋 완료\n")
 
 
 def main():
-    print("🚀 [LOG] main() 시작")
+    print("[LOG] main() 시작")
 
     # 1) 분석할 기사 가져오기
     articles = fetch_target_articles(limit=5)
 
     if not articles:
-        print("ℹ️ [LOG] 분석할 대상 기사가 없습니다.")
+        print("[LOG] 분석할 대상 기사가 없습니다.")
         return
 
     for row in articles:
@@ -180,7 +169,7 @@ def main():
         print(content[:200].strip(), "...\n")
 
         # 2) OpenAI로 분석
-        print("🔹 [LOG] OpenAI 분석 호출")
+        print("[LOG] OpenAI 분석 호출")
         analysis = analyze_article_with_openai(title, content)
 
         summary_raw = (analysis.get("summary") or "").strip()
@@ -211,7 +200,7 @@ def main():
 
         if not (ok_summary and ok_keywords and ok_sentiment):
             print(
-                f"❌ [LOG] article_id={article_id} 분석 실패 "
+                f"[LOG] article_id={article_id} 분석 실패 "
                 f"(summary_ok={ok_summary}, keywords_ok={ok_keywords}, sentiment_ok={ok_sentiment})"
             )
             # 실패 → ingest_status = FAILED, 분석결과는 저장 안 함
@@ -230,9 +219,9 @@ def main():
         update_article_status(article_id, "ANALYZED")
 
     conn.close()
-    print("🎉 [LOG] 모든 작업 완료, DB 연결 종료")
+    print("[LOG] 모든 작업 완료, DB 연결 종료")
 
 
 if __name__ == "__main__":
-    print("🔹 [LOG] __main__ 블록 진입")
+    print("[LOG] __main__ 블록 진입")
     main()

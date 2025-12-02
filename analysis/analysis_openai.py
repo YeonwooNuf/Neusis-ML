@@ -1,4 +1,3 @@
-# analysis_openai.py
 import json
 import os
 import re
@@ -82,7 +81,7 @@ def analyze_article_with_openai(title: str, content: str) -> dict:
     )
 
     result_text = response.choices[0].message.content
-    print("🔍 [DEBUG] raw response:", repr(result_text))
+    print("[DEBUG] raw response:", repr(result_text))
 
     # GPT 응답에서 JSON 부분만 추출
     clean_text = _extract_json(result_text)
@@ -91,7 +90,7 @@ def analyze_article_with_openai(title: str, content: str) -> dict:
         result_json = json.loads(clean_text)
     except json.JSONDecodeError:
         # 혹시 여전히 깨지면 최소한 원문을 같이 남겨두기
-        print("❌ [ERROR] JSONDecodeError, raw:", result_text)
+        print("[ERROR] JSONDecodeError, raw:", result_text)
         result_json = {
             "summary": "",
             "sentiment": "neutral",

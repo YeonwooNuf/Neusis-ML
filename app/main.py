@@ -1,10 +1,9 @@
-# main.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
 
 from crawler.crawler import crawl_section_page, crawl_article_detail
-from app.db.db import insert_article  # ✅ db.py의 insert_article 사용
+from app.db.db import insert_article  # db.py의 insert_article 사용
 
 from analysis.analysis_openai import analyze_article_with_openai
 
